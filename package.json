@@ -9,15 +9,12 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:json"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "package-tips.helloWorld",
-        "title": "Hello World"
-      }
-    ]
+    "commands": []
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

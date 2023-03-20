@@ -1,26 +1,67 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
+import { existsSync, readFileSync } from "fs";
+import { join, parse } from "path";
+import { pathToFileURL } from "url";
+type PackageJson = {
+  [key in "devDependencies" | "dependencies"]?: Record<string, string>;
+};
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+function getWorkspaceFolder(document: vscode.TextDocument) {
+  const path = vscode.workspace.getWorkspaceFolder(document.uri);
+  return path?.uri.fsPath;
+}
+const _provideDefinition: vscode.DefinitionProvider["provideDefinition"] = (document, position, token) => {
+  // 获取目标行
+  const line = document.lineAt(position);
+  const sliceEndIndex = line.text.indexOf('"', line.firstNonWhitespaceCharacterIndex + 1);
+  // 提取包名
+  const packName: string = line.text.substring(line.firstNonWhitespaceCharacterIndex + 1, sliceEndIndex);
+  try {
+    const packageJson: PackageJson = JSON.parse(readFileSync(document.uri.fsPath, "utf8"));
+    if (packageJson["devDependencies"]?.[packName] || packageJson["dependencies"]?.[packName]) {
+      const projectFolderPath = getWorkspaceFolder(document); // parse(document.uri.fsPath);
+      if (!projectFolderPath) {
+        return;
+      }
+      const packageFilePath = join(projectFolderPath, `./node_modules/${packName}/package.json`);
+
+      if (existsSync(packageFilePath)) {
+        return [
+          {
+            originSelectionRange: new vscode.Range(
+              new vscode.Position(line.lineNumber, line.firstNonWhitespaceCharacterIndex + 1),
+              new vscode.Position(line.lineNumber, line.firstNonWhitespaceCharacterIndex + 1 + packName.length)
+            ),
+            targetRange: new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)),
+            targetUri: vscode.Uri.file(packageFilePath),
+          },
+        ];
+      }
+      //   const res = JSON.parse(readFileSync(packageFilePath, "utf8"));
+      // 获取当前package目录
+      // console.log(document.uri);
+      //   console.log(res);
+    }
+  } catch (error) {
+    console.log(error);
+  }
+
+  // 读取依赖包的包名进行匹配
+  // 存在则到node_modules查找package.json
+  return [];
+};
 export function activate(context: vscode.ExtensionContext) {
+  const disposable = vscode.languages.registerDefinitionProvider(
+    {
+      language: "json",
+      pattern: "**/package.json",
+    },
+    {
+      provideDefinition: _provideDefinition,
+    }
+  );
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "package-tips" is now active!');
-
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('package-tips.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from vscode-plugin-package-tips!');
-	});
-
-	context.subscriptions.push(disposable);
+  context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}
