@@ -1,67 +1,58 @@
+import { readFileSync } from "fs";
 import * as vscode from "vscode";
-import { existsSync, readFileSync } from "fs";
-import { join, parse } from "path";
-import { pathToFileURL } from "url";
-type PackageJson = {
-  [key in "devDependencies" | "dependencies"]?: Record<string, string>;
-};
+import { getPackFilePath, getPackname } from "./utils";
 
-function getWorkspaceFolder(document: vscode.TextDocument) {
-  const path = vscode.workspace.getWorkspaceFolder(document.uri);
-  return path?.uri.fsPath;
-}
-const _provideDefinition: vscode.DefinitionProvider["provideDefinition"] = (document, position, token) => {
-  // 获取目标行
-  const line = document.lineAt(position);
-  const sliceEndIndex = line.text.indexOf('"', line.firstNonWhitespaceCharacterIndex + 1);
+const _provideDefinition: vscode.DefinitionProvider["provideDefinition"] = (document, position) => {
   // 提取包名
-  const packName: string = line.text.substring(line.firstNonWhitespaceCharacterIndex + 1, sliceEndIndex);
+  const { packName, line } = getPackname(document, position);
   try {
-    const packageJson: PackageJson = JSON.parse(readFileSync(document.uri.fsPath, "utf8"));
-    if (packageJson["devDependencies"]?.[packName] || packageJson["dependencies"]?.[packName]) {
-      const projectFolderPath = getWorkspaceFolder(document); // parse(document.uri.fsPath);
-      if (!projectFolderPath) {
-        return;
-      }
-      const packageFilePath = join(projectFolderPath, `./node_modules/${packName}/package.json`);
-
-      if (existsSync(packageFilePath)) {
-        return [
-          {
-            originSelectionRange: new vscode.Range(
-              new vscode.Position(line.lineNumber, line.firstNonWhitespaceCharacterIndex + 1),
-              new vscode.Position(line.lineNumber, line.firstNonWhitespaceCharacterIndex + 1 + packName.length)
-            ),
-            targetRange: new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)),
-            targetUri: vscode.Uri.file(packageFilePath),
-          },
-        ];
-      }
-      //   const res = JSON.parse(readFileSync(packageFilePath, "utf8"));
-      // 获取当前package目录
-      // console.log(document.uri);
-      //   console.log(res);
+    // 到工作目录node_module查找包下的package.json
+    const packageFilePath = getPackFilePath(document, packName);
+    if (packageFilePath) {
+      return [
+        {
+          originSelectionRange: new vscode.Range(
+            new vscode.Position(line.lineNumber, line.firstNonWhitespaceCharacterIndex + 1),
+            new vscode.Position(line.lineNumber, line.firstNonWhitespaceCharacterIndex + 1 + packName.length)
+          ),
+          targetRange: new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)),
+          targetUri: vscode.Uri.file(packageFilePath),
+        },
+      ];
     }
   } catch (error) {
     console.log(error);
   }
 
-  // 读取依赖包的包名进行匹配
-  // 存在则到node_modules查找package.json
   return [];
 };
-export function activate(context: vscode.ExtensionContext) {
-  const disposable = vscode.languages.registerDefinitionProvider(
-    {
-      language: "json",
-      pattern: "**/package.json",
-    },
-    {
-      provideDefinition: _provideDefinition,
+const _provideHover: vscode.HoverProvider["provideHover"] = (document, position) => {
+  const { packName } = getPackname(document, position);
+  try {
+    const packagePath = getPackFilePath(document, packName);
+    if (packagePath) {
+      const info = JSON.parse(readFileSync(packagePath, "utf-8"));
+      const result: (vscode.MarkdownString | string)[] = [`package name: ${info.name}`, `package version: ${info.version}`];
+      if (info.homepage) {
+        result.push(`[查看主页：${info.homepage}](${info.homepage})`);
+      }
+      return new vscode.Hover(result);
     }
-  );
+  } catch (error) {}
+};
+export function activate(context: vscode.ExtensionContext) {
+  const matchFileConfig = { language: "json", pattern: "**/package.json" };
 
-  context.subscriptions.push(disposable);
+  const definitionDisposable = vscode.languages.registerDefinitionProvider(matchFileConfig, {
+    provideDefinition: _provideDefinition,
+  });
+
+  const hoverDisposable = vscode.languages.registerHoverProvider(matchFileConfig, {
+    provideHover: _provideHover,
+  });
+
+  context.subscriptions.push(definitionDisposable);
+  context.subscriptions.push(hoverDisposable);
 }
 
 export function deactivate() {}
