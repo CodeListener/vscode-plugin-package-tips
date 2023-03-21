@@ -14,7 +14,20 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": []
+    "commands": [
+      {
+        "title": "PackageTip 助手",
+        "command": "vscode-plugin-package-tips.createWebview"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "vscode-plugin-package-tips.createWebview",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

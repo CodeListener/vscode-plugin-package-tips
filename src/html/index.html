@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      /* 浅色主题 */
+      .body.vscode-light {
+        background: white;
+        color: black;
+      }
+      /* 深色主题 */
+      body.vscode-dark {
+        background: #ffffff;
+        color: rgb(255, 0, 0);
+      }
+      /* 高对比度主题 */
+      body.vscode-high-contrast {
+        background: white;
+        color: red;
+      }
+    </style>
+  </head>
+  <body class="vscode-light">
+    HELLO WORLD
+    <img src="https://p3-passport.byteimg.com/img/user-avatar/eb2fd7701305b6095b6d21fe8d27338d~180x180.awebp" />
+    <button id="btn">click</button>
+    <script>
+      // 发布订阅
+      class PublishSubscription {
+        handlers = {};
+        addEventListener(eventName, handler) {
+          if (!this.handlers[eventName]) {
+            this.handlers[eventName] = [];
+          }
+          this.handlers[eventName].push(handler);
+        }
+        removeEventListener(eventName, handler) {
+          if (!handler && this.handlers[eventName]) {
+            delete this.handlers[eventName];
+          } else {
+            const idx = this.handlers[eventName].findIndex((h) => h === handler);
+            this.handlers[eventName].splice(idx, 1);
+            if (this.handlers[eventName].length === 0) {
+              delete this.handles[eventName];
+            }
+          }
+        }
+        dispatch(eventName, ...args) {
+          if (this.handlers[eventName].length) {
+            this.handlers[eventName].forEach((handle) => {
+              handle(...args);
+            });
+          }
+        }
+      }
+
+      // 通信sdk
+      function VscodeBridge(vscode) {
+        this.events = new PublishSubscription();
+        this.vscode = vscode;
+        window.addEventListener("message", (e) => {
+          const { type } = e.data;
+          this.events.dispatch(type, e.data);
+        });
+      }
+
+      VscodeBridge.prototype.exec = function (command) {
+        const eventName = "exec";
+        return new Promise((resolve) => {
+          this.events.addEventListener(eventName, resolve);
+          this.vscode.postMessage({ type: eventName, data: command });
+        });
+      };
+    </script>
+    <script>
+      const $btn = document.getElementById("btn");
+      const vscode = acquireVsCodeApi();
+      console.log(vscode);
+      const state = vscode.getState();
+      console.log(state);
+      vscode.setState({ a: 111 });
+      const bridge = new VscodeBridge(vscode);
+
+      $btn.addEventListener("click", async () => {
+        const res = await bridge.exec("aaaa");
+        console.log(res);
+      });
+    </script>
+  </body>
+</html>

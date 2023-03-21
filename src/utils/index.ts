@@ -33,3 +33,32 @@ export function getPackFilePath(document: vscode.TextDocument, packName: string)
     return undefined;
   }
 }
+
+// 发布订阅
+export class PublishSubscription {
+  handlers: Record<string, Function[]> = {};
+  addEventListener(eventName: string, handler: Function) {
+    if (!this.handlers[eventName]) {
+      this.handlers[eventName] = [];
+    }
+    this.handlers[eventName].push(handler);
+  }
+  removeEventListener(eventName: string, handler: Function) {
+    if (!handler && this.handlers[eventName]) {
+      delete this.handlers[eventName];
+    } else {
+      const idx = this.handlers[eventName].findIndex((h) => h === handler);
+      this.handlers[eventName].splice(idx, 1);
+      if (this.handlers[eventName].length === 0) {
+        delete this.handlers[eventName];
+      }
+    }
+  }
+  dispatch(eventName: string, ...args: unknown[]) {
+    if (this.handlers[eventName].length) {
+      this.handlers[eventName].forEach((handle) => {
+        handle(...args);
+      });
+    }
+  }
+}
